@@ -1,6 +1,6 @@
 
 
-name: auto_ewarjs
+name: ewars_monthly
 
 adapters: {'Cases': 'disease_cases',
            'E': 'population',
