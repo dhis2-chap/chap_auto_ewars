@@ -1,28 +1,11 @@
-# Y = number of cases
-# E = pop.var.dat
-# T1 = week
-# T2 = year
-# S1 = district
-
-#Data operations
-
-# library(tsibble)
-# library(lubridate)
-# library(dplyr)
-# 
-#future_df <- read.csv("example_data/futureData.csv")
-#hist_df <- read.csv("example_data/trainData.csv") #|>
-#   mutate(month = month(yearmonth(time_period)))
-# 
-#colnames(df)[c(8, 11, 12)] <- c("Cases", "ID_year", "ID_spat")
-
-#write.csv(df, file = "example_data/trainData.csv")
-
-
-local({r <- getOption("repos")
-       r["CRAN"] <- "https://cran.r-project.org"
-       options(repos=r)
-})
+# left side is the names used in the code, right side is the internal names in CHAP
+# Cases = number of cases
+# E = population
+# month = month
+# ID_year = year
+# ID_spat = location
+# rainsum = rainfall
+# meantemperature = mean_temperature
 
 library(tsModel)
 library(dlnm)
@@ -60,7 +43,6 @@ offset_years_and_months <- function(df) {
   return(df)
 }
 
-
 extra_fields <- function(df) {
     basis_meantemperature <- get_crossbasis(df$meantemperature, df$ID_spat, 3)
     colnames(basis_meantemperature) = paste0("basis_meantemperature.", colnames(basis_meantemperature))
@@ -76,6 +58,7 @@ get_basis_rainsum <- function(df) {
 
 mymodel <- function(formula, data = df, family = "nbinomial", config = FALSE, basis_meantemperature = NA, basis_rainsum = NA)
 {
+  summary(basis_meantemperature)
   model <- inla(formula = formula, data = data, family = family, offset = log(E),
                 control.inla = list(strategy = 'adaptive'),
                 control.compute = list(dic = TRUE, config = config, cpo = TRUE, return.marginals = FALSE),
