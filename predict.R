@@ -11,7 +11,7 @@ library(INLA)
 source('lib.R')
 
 predict_chap <- function(model_fn, hist_fn, future_fn, preds_fn){
-  load(file = model_fn) #the formula from here is not actually used
+  #load(file = model_fn) #would normally load a model here
   
   df <- read.csv(future_fn)
   df$Cases <- rep(NA, nrow(df))
@@ -35,7 +35,7 @@ predict_chap <- function(model_fn, hist_fn, future_fn, preds_fn){
   casestopred <- df$Cases # response variable
   
   # Predict only for the cases where the response variable is missing
-  idx.pred <- which(is.na(casestopred))
+  idx.pred <- which(is.na(casestopred)) #this then also predicts for historic values that are NA, not ideal
   mpred <- length(idx.pred)
   s <- 1000
   y.pred <- matrix(NA, mpred, s)

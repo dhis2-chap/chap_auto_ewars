@@ -11,8 +11,7 @@ library(INLA)
 source('lib.R')
 
 train_chap <- function(train_fn, model_fn){
-  selectedFormula = lagged_formula
-  save(selectedFormula, file = model_fn)
+  #would normally train the model here
 }
 
 args <- commandArgs(trailingOnly = TRUE)
