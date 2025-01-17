@@ -4,20 +4,34 @@
 # T2 = year
 # S1 = district
 
+#Data operations
+
+# library(tsibble)
+# library(lubridate)
+# library(dplyr)
+# 
+#future_df <- read.csv("example_data/futureData.csv")
+#hist_df <- read.csv("example_data/trainData.csv") #|>
+#   mutate(month = month(yearmonth(time_period)))
+# 
+#colnames(df)[c(8, 11, 12)] <- c("Cases", "ID_year", "ID_spat")
+
+#write.csv(df, file = "example_data/trainData.csv")
+
 
 local({r <- getOption("repos")
        r["CRAN"] <- "https://cran.r-project.org"
        options(repos=r)
 })
-#install.packages(c("tsModel", "dlnm"))
 
 library(tsModel)
 library(dlnm)
 
 get_crossbasis <- function(var, group, nlag){
-    tsModel::Lag(var, group = group, k = 0:nlag)
+    #lagged <- tsModel::Lag(var, group = group, k = 0:nlag)
     lagknot = equalknots(0:nlag, 2)
     basis <- crossbasis(var, argvar = list(fun = "ns", knots = equalknots(var, 2)), arglag = list(fun = "ns", knots = nlag/2))
+    return(basis)
 }
 
 get_last_month <- function(df) {
@@ -53,13 +67,14 @@ extra_fields <- function(df) {
     return (basis_meantemperature)
 }
 
-get_basis_rainfall <- function(df) {
-  basis <- get_crossbasis(df$rainfall, df$ID_spat, 3)
-  colnames(basis) = paste0('basis_rainfall', colnames(basis_meantemperature))
+get_basis_rainsum <- function(df) {
+  basis <- get_crossbasis(df$rainsum, df$ID_spat, 3)
+  colnames(basis) = paste0('basis_rainsum.', colnames(basis))
   return (basis)
 }
 
-mymodel <- function(formula, data = df, family = "nbinomial", config = FALSE)
+
+mymodel <- function(formula, data = df, family = "nbinomial", config = FALSE, basis_meantemperature = NA, basis_rainsum = NA)
 {
   model <- inla(formula = formula, data = data, family = family, offset = log(E),
                 control.inla = list(strategy = 'adaptive'),
@@ -71,5 +86,5 @@ mymodel <- function(formula, data = df, family = "nbinomial", config = FALSE)
 }
 
 basis_formula <- Cases ~ 1 + f(ID_spat, model='iid', replicate=ID_year) + f(month, model='rw1', cyclic=T, scale.model=T)
-lagged_formula <- Cases ~ 1 + f(ID_spat, model='iid', replicate=ID_year) + f(month, model='rw1', cyclic=T, scale.model=T) + basis_meantemperature + basis_rainfall
+lagged_formula <- Cases ~ 1 + f(ID_spat, model='iid', replicate=ID_year) + f(month, model='rw1', cyclic=T, scale.model=T) + basis_meantemperature + basis_rainsum
 
