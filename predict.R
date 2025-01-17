@@ -11,7 +11,7 @@ library(INLA)
 source('lib.R')
 
 predict_chap <- function(model_fn, hist_fn, future_fn, preds_fn){
-  load(file = model_fn)
+  load(file = model_fn) #the formula from here is not actually used
   
   df <- read.csv(future_fn)
   df$Cases <- rep(NA, nrow(df))
@@ -24,7 +24,6 @@ predict_chap <- function(model_fn, hist_fn, future_fn, preds_fn){
   basis_meantemperature <- extra_fields(df)
   basis_rainsum <- get_basis_rainsum(df)
   
-  #model = mymodel(selectedFormula, df, config = TRUE, basis_meantemperature = basis_meantemperature, basis_rainsum = basis_rainsum)
   lagged_formula <- Cases ~ 1 + f(ID_spat, model='iid', replicate=ID_year) + f(month, model='rw1', cyclic=T, scale.model=T) + basis_meantemperature + basis_rainsum
   model <- inla(formula = lagged_formula, data = df, family = "nbinomial", offset = log(E),
                 control.inla = list(strategy = 'adaptive'),

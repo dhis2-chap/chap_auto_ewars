@@ -56,18 +56,3 @@ get_basis_rainsum <- function(df) {
 }
 
 
-mymodel <- function(formula, data = df, family = "nbinomial", config = FALSE, basis_meantemperature = NA, basis_rainsum = NA)
-{
-  summary(basis_meantemperature)
-  model <- inla(formula = formula, data = data, family = family, offset = log(E),
-                control.inla = list(strategy = 'adaptive'),
-                control.compute = list(dic = TRUE, config = config, cpo = TRUE, return.marginals = FALSE),
-                control.fixed = list(correlation.matrix = TRUE, prec.intercept = 1, prec = 1),
-                control.predictor = list(link = 1, compute = TRUE),
-                verbose = F, safe=FALSE)
-  return(model)
-}
-
-basis_formula <- Cases ~ 1 + f(ID_spat, model='iid', replicate=ID_year) + f(month, model='rw1', cyclic=T, scale.model=T)
-lagged_formula <- Cases ~ 1 + f(ID_spat, model='iid', replicate=ID_year) + f(month, model='rw1', cyclic=T, scale.model=T) + basis_meantemperature + basis_rainsum
-
