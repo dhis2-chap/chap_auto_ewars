@@ -11,9 +11,9 @@ library(tsModel)
 library(dlnm)
 
 get_crossbasis <- function(var, group, nlag){
-    #lagged <- tsModel::Lag(var, group = group, k = 0:nlag)
+    lagged <- tsModel::Lag(var, group = group, k = 0:nlag)
     lagknot = equalknots(0:nlag, 2)
-    basis <- crossbasis(var, argvar = list(fun = "ns", knots = equalknots(var, 2)), arglag = list(fun = "ns", knots = nlag/2))
+    basis <- crossbasis(lagged, argvar = list(fun = "ns", knots = equalknots(lagged, 2)), arglag = list(fun = "ns", knots = nlag/2))
     return(basis)
 }
 
