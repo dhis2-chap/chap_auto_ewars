@@ -62,7 +62,8 @@ predict_chap <- function(model_fn, hist_fn, future_fn, preds_fn){
 
 args <- commandArgs(trailingOnly = TRUE)
 
-if (length(args) == 4) {
+if (length(args) >= 1) {
+  cat("running predictions")
   model_fn <- args[1]
   hist_fn <- args[2]
   future_fn <- args[3]
