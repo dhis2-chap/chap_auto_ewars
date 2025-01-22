@@ -25,4 +25,4 @@ entry_points:
       future_data: path
       model: str
       out_file: path
-    command: "Rscript predict.R {model} {historic_data} {future_data} {out_file} None samples"
+    command: "Rscript predict.R {model} {historic_data} {future_data} {out_file} {polygons} samples"

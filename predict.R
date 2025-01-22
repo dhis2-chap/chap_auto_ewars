@@ -22,12 +22,24 @@ predict_chap <- function(model_fn, hist_fn, future_fn, preds_fn){
   df <- offset_years_and_months(df)
   df$ID_year <- df$ID_year - min(df$ID_year) + 1 #makes the years 1, 2, ...
   
-  basis_meantemperature <- extra_fields(df)
-  basis_rainsum <- get_basis_rainsum(df)
+  basis_meantemperature <- crossbasis(df$mean_temperature, lag=3, 
+        argvar = list(fun = "ns", knots = equalknots(df$mean_temperature, 2)), 
+        arglag = list(fun = "ns", knots = 3/2), group = df$ID_spat)
+  colnames(basis_meantemperature) = paste0("basis_meantemperature.", colnames(basis_meantemperature))
   
-  #f(ID_spat, model = "icar", graph = adjacency_matrix), the ICAR formula
-  lagged_formula <- Cases ~ 1 + f(ID_spat, model='iid', replicate=ID_year) + 
-    f(month, model='rw1', cyclic=T, scale.model=T) + basis_meantemperature + basis_rainsum
+  basis_rainsum <- crossbasis(df$rainsum, lag=3, 
+         argvar = list(fun = "ns", knots = equalknots(df$rainsum, 2)), 
+         arglag = list(fun = "ns", knots = 3/2), group = df$ID_spat)
+  colnames(basis_rainsum) = paste0("basis_rainsum.", colnames(basis_rainsum))
+  
+  
+  #f(ID_spat, model = "icar", graph = adjacency_matrix), the ICAR formula, can also use a BYM
+  # just ICRA + iid for the spatial regions
+  #lagged_formula <- Cases ~ 1 + f(ID_spat, model='iid', replicate=ID_year) + 
+  #  f(month, model='rw1', cyclic=T, scale.model=T) + basis_meantemperature + basis_rainsum
+  
+  lagged_formula <- Cases ~ 1 + f(ID_spat, model='iid') + 
+      f(month, model='rw1', cyclic=T, scale.model=T) + basis_meantemperature + basis_rainsum
   
   model <- inla(formula = lagged_formula, data = df, family = "nbinomial", offset = log(E),
                 control.inla = list(strategy = 'adaptive'),
@@ -60,6 +72,7 @@ predict_chap <- function(model_fn, hist_fn, future_fn, preds_fn){
 
   # Write new dataframe to file
   write.csv(new.df, preds_fn, row.names = FALSE)
+  saveRDS(model, file = model_fn)
 }
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -76,33 +89,48 @@ if (length(args) >= 1) {
 
 # testing
 library(dplyr)
+# 
+# model_fn <- "example_data/model"
+# hist_fn <- "example_data/historic_data.csv"
+# future_fn <- "example_data/future_data.csv"
+# preds_fn <- "example_data/predictions.csv"
+# 
+# df <- read.csv(future_fn)
+# df$Cases <- rep(NA, nrow(df))
+# df$disease_cases <- rep(NA, nrow(df)) #so we can rowbind it with historic
+# 
+# historic_df = read.csv(hist_fn)
+# df <- rbind(historic_df, df)
+# df <- offset_years_and_months(df)
+# df$ID_year <- df$ID_year - min(df$ID_year) + 1
+# 
+# basis_meantemperature <- extra_fields(df)
+# basis_rainsum <- get_basis_rainsum(df)
+# 
+# basis_dlnm_meantemperature <- crossbasis(df$mean_temperature, lag=3, 
+#               argvar = list(fun = "ns", knots = equalknots(df$mean_temperature, 2)), 
+#               arglag = list(fun = "ns", knots = 3/2), group = df$ID_spat)
+# 
+# check_equal <- basis_meantemperature == basis_dlnm_meantemperature
+# all(check_equal[!is.na(check_equal)]) #check if it worked for meantemp
+# 
+# basis_dlnm_rainsum <- crossbasis(df$rainsum, lag=3, 
+#                                          argvar = list(fun = "ns", knots = equalknots(df$rainsum, 2)), 
+#                                          arglag = list(fun = "ns", knots = 3/2), group = df$ID_spat)
+# 
+# check_equal2 <- basis_rainsum == basis_dlnm_rainsum
+# all(check_equal2[!is.na(check_equal2)])
 
-model_fn <- "example_data/model"
-hist_fn <- "example_data/historic_data.csv"
-future_fn <- "example_data/future_data.csv"
-preds_fn <- "example_data/predictions.csv"
-
-df <- read.csv(future_fn)
-df$Cases <- rep(NA, nrow(df))
-df$disease_cases <- rep(NA, nrow(df)) #so we can rowbind it with historic
-
-historic_df = read.csv(hist_fn)
-df <- rbind(historic_df, df) 
-df <- offset_years_and_months(df)
-df$ID_year <- df$ID_year - min(df$ID_year) + 1
-
-basis_meantemperature <- extra_fields(df)
-basis_rainsum <- get_basis_rainsum(df)
-
-lagged_formula <- Cases ~ 1 + f(ID_spat, model='iid', replicate=ID_year) + 
-  f(month, model='rw1', cyclic=T, scale.model=T, replicate=ID_spat) + basis_meantemperature + basis_rainsum
-
-model2 <- inla(formula = lagged_formula, data = df, family = "nbinomial", offset = log(E),
-              control.inla = list(strategy = 'adaptive'),
-              control.compute = list(dic = TRUE, config = TRUE, cpo = TRUE, return.marginals = FALSE),
-              control.fixed = list(correlation.matrix = TRUE, prec.intercept = 1, prec = 1),
-              control.predictor = list(link = 1, compute = TRUE),
-              verbose = T, safe=FALSE)
-
-rand_ID_spat2 <- model2$summary.random$ID_spat
-
+# 
+# lagged_formula <- Cases ~ 1 + f(ID_spat, model='iid', replicate=ID_year) + 
+#   f(month, model='rw1', cyclic=T, scale.model=T, replicate=ID_spat) + basis_meantemperature + basis_rainsum
+# 
+# model2 <- inla(formula = lagged_formula, data = df, family = "nbinomial", offset = log(E),
+#               control.inla = list(strategy = 'adaptive'),
+#               control.compute = list(dic = TRUE, config = TRUE, cpo = TRUE, return.marginals = FALSE),
+#               control.fixed = list(correlation.matrix = TRUE, prec.intercept = 1, prec = 1),
+#               control.predictor = list(link = 1, compute = TRUE),
+#               verbose = T, safe=FALSE)
+# 
+# rand_ID_spat2 <- model2$summary.random$ID_spat
+# 

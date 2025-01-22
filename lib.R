@@ -7,15 +7,7 @@
 # rainsum = rainfall
 # meantemperature = mean_temperature
 
-library(tsModel)
 library(dlnm)
-
-get_crossbasis <- function(var, group, nlag){
-    lagged <- tsModel::Lag(var, group = group, k = 0:nlag)
-    lagknot = equalknots(0:nlag, 2)
-    basis <- crossbasis(lagged, argvar = list(fun = "ns", knots = equalknots(lagged, 2)), arglag = list(fun = "ns", knots = nlag/2))
-    return(basis)
-}
 
 get_last_month <- function(df) {
   df = df[!is.na(df$Cases),]
@@ -43,16 +35,5 @@ offset_years_and_months <- function(df) {
   return(df)
 }
 
-extra_fields <- function(df) {
-    basis_meantemperature <- get_crossbasis(df$meantemperature, df$ID_spat, 3)
-    colnames(basis_meantemperature) = paste0("basis_meantemperature.", colnames(basis_meantemperature))
-    return (basis_meantemperature)
-}
-
-get_basis_rainsum <- function(df) {
-  basis <- get_crossbasis(df$rainsum, df$ID_spat, 3)
-  colnames(basis) = paste0('basis_rainsum.', colnames(basis))
-  return (basis)
-}
 
 
