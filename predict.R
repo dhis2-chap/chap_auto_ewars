@@ -20,10 +20,12 @@ predict_chap <- function(model_fn, hist_fn, future_fn, preds_fn){
   historic_df = read.csv(hist_fn)
   df <- rbind(historic_df, df) 
   df <- offset_years_and_months(df)
+  df$ID_year <- df$ID_year - min(df$ID_year) + 1 #makes the years 1, 2, ...
   
   basis_meantemperature <- extra_fields(df)
   basis_rainsum <- get_basis_rainsum(df)
   
+  #f(ID_spat, model = "icar", graph = adjacency_matrix), the ICAR formula
   lagged_formula <- Cases ~ 1 + f(ID_spat, model='iid', replicate=ID_year) + 
     f(month, model='rw1', cyclic=T, scale.model=T) + basis_meantemperature + basis_rainsum
   
@@ -73,8 +75,34 @@ if (length(args) >= 1) {
 }
 
 # testing
-# 
-# model_fn <- "example_data/model"
-# hist_fn <- "example_data/historic_data.csv"
-# future_fn <- "example_data/future_data.csv"
-# preds_fn <- "example_data/predictions.csv"
+library(dplyr)
+
+model_fn <- "example_data/model"
+hist_fn <- "example_data/historic_data.csv"
+future_fn <- "example_data/future_data.csv"
+preds_fn <- "example_data/predictions.csv"
+
+df <- read.csv(future_fn)
+df$Cases <- rep(NA, nrow(df))
+df$disease_cases <- rep(NA, nrow(df)) #so we can rowbind it with historic
+
+historic_df = read.csv(hist_fn)
+df <- rbind(historic_df, df) 
+df <- offset_years_and_months(df)
+df$ID_year <- df$ID_year - min(df$ID_year) + 1
+
+basis_meantemperature <- extra_fields(df)
+basis_rainsum <- get_basis_rainsum(df)
+
+lagged_formula <- Cases ~ 1 + f(ID_spat, model='iid', replicate=ID_year) + 
+  f(month, model='rw1', cyclic=T, scale.model=T, replicate=ID_spat) + basis_meantemperature + basis_rainsum
+
+model2 <- inla(formula = lagged_formula, data = df, family = "nbinomial", offset = log(E),
+              control.inla = list(strategy = 'adaptive'),
+              control.compute = list(dic = TRUE, config = TRUE, cpo = TRUE, return.marginals = FALSE),
+              control.fixed = list(correlation.matrix = TRUE, prec.intercept = 1, prec = 1),
+              control.predictor = list(link = 1, compute = TRUE),
+              verbose = T, safe=FALSE)
+
+rand_ID_spat2 <- model2$summary.random$ID_spat
+
