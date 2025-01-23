@@ -7,7 +7,6 @@
 # rainsum = rainfall
 # meantemperature = mean_temperature
 
-library(dlnm)
 
 get_last_month <- function(df) {
   df = df[!is.na(df$Cases),]

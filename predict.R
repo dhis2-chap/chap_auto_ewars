@@ -8,6 +8,7 @@
 # meantemperature = mean_temperature
 
 library(INLA)
+library(dlnm)
 source('lib.R')
 
 predict_chap <- function(model_fn, hist_fn, future_fn, preds_fn){
@@ -22,8 +23,8 @@ predict_chap <- function(model_fn, hist_fn, future_fn, preds_fn){
   df <- offset_years_and_months(df)
   df$ID_year <- df$ID_year - min(df$ID_year) + 1 #makes the years 1, 2, ...
   
-  basis_meantemperature <- crossbasis(df$mean_temperature, lag=3, 
-        argvar = list(fun = "ns", knots = equalknots(df$mean_temperature, 2)), 
+  basis_meantemperature <- crossbasis(df$meantemperature, lag=3, 
+        argvar = list(fun = "ns", knots = equalknots(df$meantemperature, 2)), 
         arglag = list(fun = "ns", knots = 3/2), group = df$ID_spat)
   colnames(basis_meantemperature) = paste0("basis_meantemperature.", colnames(basis_meantemperature))
   
@@ -33,11 +34,13 @@ predict_chap <- function(model_fn, hist_fn, future_fn, preds_fn){
   colnames(basis_rainsum) = paste0("basis_rainsum.", colnames(basis_rainsum))
   
   
+  #also need some conversion from geojson file to adjacency matrix in R, obs for harmonization
   #f(ID_spat, model = "icar", graph = adjacency_matrix), the ICAR formula, can also use a BYM
-  # just ICRA + iid for the spatial regions
+  # just ICAR + iid for the spatial regions
   #lagged_formula <- Cases ~ 1 + f(ID_spat, model='iid', replicate=ID_year) + 
   #  f(month, model='rw1', cyclic=T, scale.model=T) + basis_meantemperature + basis_rainsum
   
+  #formula without a yearly effect
   lagged_formula <- Cases ~ 1 + f(ID_spat, model='iid') + 
       f(month, model='rw1', cyclic=T, scale.model=T) + basis_meantemperature + basis_rainsum
   
