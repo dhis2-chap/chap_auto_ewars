@@ -9,6 +9,7 @@
 
 library(INLA)
 library(dlnm)
+library(dplyr)
 source('lib.R')
 
 predict_chap <- function(model_fn, hist_fn, future_fn, preds_fn){
@@ -21,7 +22,12 @@ predict_chap <- function(model_fn, hist_fn, future_fn, preds_fn){
   historic_df = read.csv(hist_fn)
   df <- rbind(historic_df, df) 
   df <- offset_years_and_months(df)
-  df$ID_year <- df$ID_year - min(df$ID_year) + 1 #makes the years 1, 2, ...
+  df$ID_year <- df$ID_year - min(df$ID_year) + 1 #makes the years 1, 2, ..., not actually used anymore
+  
+  #adding a counting variable for the months like 1, ..., 12, 13, ...
+  #could also do years*12 + months, but fails for weeks
+  df <-group_by(df, location) |>
+    mutate(month_num = row_number())
   
   basis_meantemperature <- crossbasis(df$meantemperature, lag=3, 
         argvar = list(fun = "ns", knots = equalknots(df$meantemperature, 2)), 
@@ -40,8 +46,12 @@ predict_chap <- function(model_fn, hist_fn, future_fn, preds_fn){
   #lagged_formula <- Cases ~ 1 + f(ID_spat, model='iid', replicate=ID_year) + 
   #  f(month, model='rw1', cyclic=T, scale.model=T) + basis_meantemperature + basis_rainsum
   
-  #formula without a yearly effect
+  df$ID_spat <- as.factor(df$ID_spat)
+  df$ID_spat_num <- as.numeric(as.factor(df$ID_spat))
+  
+  #formula without a yearly effect, instead a common rw1 for all regions for the months
   lagged_formula <- Cases ~ 1 + f(ID_spat, model='iid') + 
+      f(month_num, model = "rw1", scale.model = T, replicate = ID_spat_num) +
       f(month, model='rw1', cyclic=T, scale.model=T) + basis_meantemperature + basis_rainsum
   
   model <- inla(formula = lagged_formula, data = df, family = "nbinomial", offset = log(E),
@@ -91,13 +101,13 @@ if (length(args) >= 1) {
 }
 
 # testing
-library(dplyr)
+#library(dplyr)
 # 
 # model_fn <- "example_data/model"
 # hist_fn <- "example_data/historic_data.csv"
 # future_fn <- "example_data/future_data.csv"
 # preds_fn <- "example_data/predictions.csv"
-# 
+
 # df <- read.csv(future_fn)
 # df$Cases <- rep(NA, nrow(df))
 # df$disease_cases <- rep(NA, nrow(df)) #so we can rowbind it with historic
