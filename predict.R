@@ -10,10 +10,10 @@
 library(INLA)
 library(dlnm)
 library(dplyr)
-source('lib.R')
+#source('lib.R')
 
 predict_chap <- function(model_fn, hist_fn, future_fn, preds_fn){
-  #load(file = model_fn) #would normally load a model here
+  model <- readRDS(file = model_fn) #would normally load a model here
   
   df <- read.csv(future_fn)
   df$Cases <- rep(NA, nrow(df))
@@ -21,21 +21,21 @@ predict_chap <- function(model_fn, hist_fn, future_fn, preds_fn){
   
   historic_df = read.csv(hist_fn)
   df <- rbind(historic_df, df) 
-  df <- offset_years_and_months(df)
-  df$ID_year <- df$ID_year - min(df$ID_year) + 1 #makes the years 1, 2, ..., not actually used anymore
+  #df <- offset_years_and_months(df)
+  #df$ID_year <- df$ID_year - min(df$ID_year) + 1 #makes the years 1, 2, ..., not actually used anymore
   
   #adding a counting variable for the months like 1, ..., 12, 13, ...
   #could also do years*12 + months, but fails for weeks
   df <-group_by(df, location) |>
     mutate(month_num = row_number())
   
-  basis_meantemperature <- crossbasis(df$meantemperature, lag=3, 
-        argvar = list(fun = "ns", knots = equalknots(df$meantemperature, 2)), 
+  basis_meantemperature <- crossbasis(df$meantemperature, lag=3,
+        argvar = list(fun = "ns", knots = equalknots(df$meantemperature, 2)),
         arglag = list(fun = "ns", knots = 3/2), group = df$ID_spat)
   colnames(basis_meantemperature) = paste0("basis_meantemperature.", colnames(basis_meantemperature))
-  
-  basis_rainsum <- crossbasis(df$rainsum, lag=3, 
-         argvar = list(fun = "ns", knots = equalknots(df$rainsum, 2)), 
+
+  basis_rainsum <- crossbasis(df$rainsum, lag=3,
+         argvar = list(fun = "ns", knots = equalknots(df$rainsum, 2)),
          arglag = list(fun = "ns", knots = 3/2), group = df$ID_spat)
   colnames(basis_rainsum) = paste0("basis_rainsum.", colnames(basis_rainsum))
   
@@ -49,19 +49,25 @@ predict_chap <- function(model_fn, hist_fn, future_fn, preds_fn){
   df$ID_spat <- as.factor(df$ID_spat)
   df$ID_spat_num <- as.numeric(as.factor(df$ID_spat))
   
-  #formula without a yearly effect, instead a common rw1 for all regions for the months, still
-  # has a iid region specific effecr and the cyclic rw1 over the months, plus the exogenous vars
-  lagged_formula <- Cases ~ 1 + f(ID_spat, model='iid') + 
-      f(month_num, model = "rw1", scale.model = T, replicate = ID_spat_num) +
-      f(month, model='rw1', cyclic=T, scale.model=T) + basis_meantemperature + basis_rainsum
+  df <- cbind(df, basis_meantemperature, basis_rainsum)
   
+  #formula without a yearly effect, instead a common rw1 for all regions for the months, still
+  #has a iid region specific effect and the cyclic rw1 over the months, plus the exogenous vars
+  lagged_formula <- Cases ~ 1 + f(ID_spat, model='iid', hyper=list(prec = list(prior = "pc.prec",
+      param = c(1, 0.01)))) + f(month_num, model = "rw1", scale.model = T,
+      replicate = ID_spat_num, hyper=list(prec = list(prior = "pc.prec", param = c(1, 0.01)))) +
+      f(month, model='rw1', cyclic=T, scale.model=T, hyper=list(prec = list(prior = "pc.prec",
+      param = c(1, 0.01)))) + basis_meantemperature + basis_rainsum
+
   model <- inla(formula = lagged_formula, data = df, family = "nbinomial", offset = log(E),
                 control.inla = list(strategy = 'adaptive'),
-                control.compute = list(dic = TRUE, config = TRUE, cpo = TRUE, return.marginals = FALSE),
-                control.fixed = list(correlation.matrix = TRUE, prec.intercept = 1, prec = 1),
+                control.compute = list(config = TRUE, return.marginals = FALSE),
+                control.fixed = list(correlation.matrix = TRUE, prec.intercept = 0.1, prec = 1),
                 control.predictor = list(link = 1, compute = TRUE),
                 verbose = F, safe=FALSE)
-  
+  #summary(model)
+  #model <- inla.rerun(model)
+
   casestopred <- df$Cases # response variable
   
   # Predict only for the cases where the response variable is missing
@@ -79,14 +85,16 @@ predict_chap <- function(model_fn, hist_fn, future_fn, preds_fn){
     y.pred[, s.idx] <- rnbinom(mpred,  mu = exp(xx.sample[-1]), size = xx.sample[1])
   }
   
+  
+  
   # make a dataframe where first column is the time points, second column is the location, rest is the samples
   # rest of columns should be called sample_0, sample_1, etc
   new.df = data.frame(time_period = df$time_period[idx.pred], location = df$location[idx.pred], y.pred)
   colnames(new.df) = c('time_period', 'location', paste0('sample_', 0:(s-1)))
-
+  
   # Write new dataframe to file
   write.csv(new.df, preds_fn, row.names = FALSE)
-  saveRDS(model, file = model_fn)
+  #saveRDS(model, file = model_fn)
 }
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -104,7 +112,7 @@ if (length(args) >= 1) {
 # testing
 #library(dplyr)
 # 
-# model_fn <- "example_data/model"
+# model_fn <- "model"
 # hist_fn <- "example_data/historic_data.csv"
 # future_fn <- "example_data/future_data.csv"
 # preds_fn <- "example_data/predictions.csv"
