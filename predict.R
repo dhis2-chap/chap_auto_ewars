@@ -49,7 +49,8 @@ predict_chap <- function(model_fn, hist_fn, future_fn, preds_fn){
   df$ID_spat <- as.factor(df$ID_spat)
   df$ID_spat_num <- as.numeric(as.factor(df$ID_spat))
   
-  #formula without a yearly effect, instead a common rw1 for all regions for the months
+  #formula without a yearly effect, instead a common rw1 for all regions for the months, still
+  # has a iid region specific effecr and the cyclic rw1 over the months, plus the exogenous vars
   lagged_formula <- Cases ~ 1 + f(ID_spat, model='iid') + 
       f(month_num, model = "rw1", scale.model = T, replicate = ID_spat_num) +
       f(month, model='rw1', cyclic=T, scale.model=T) + basis_meantemperature + basis_rainsum
