@@ -3,16 +3,18 @@ source("train.R")
 source("predict.R")
 
 #test with random data
-train_chap("example_data/training_data.csv", "model")
-predict_chap("model", "example_data/historic_data.csv", "example_data/future_data.csv", "example_data/predictions.csv")
+#train_chap("example_data/training_data.csv", "model")
+#predict_chap("model", "example_data/historic_data.csv", "example_data/future_data.csv", "example_data/predictions.csv", "")
 
-#test with data from Vietnam
-#train_chap("example_data_Viet/trainData.csv", "model")
-#predict_chap("model", "example_data_Viet/historic_data.csv", "example_data_Viet/future_data.csv", "example_data_Viet/predictions.csv")
+#test with data from Vietnam with a graph
+train_chap("example_data_Viet/trainData.csv", "model")
+predict_chap("model", "example_data_Viet/historic_data.csv", "example_data_Viet/future_data.csv", "example_data_Viet/predictions.csv", "example_data_Viet/vietnam.json")
 
-#test with data from Vietnam data that failed
-#train_chap("ex_data_fails/trainData.csv", "model")
-#predict_chap("model", "ex_data_fails/historic_data.csv", "ex_data_fails/future_data.csv", "ex_data_fails/predictions.csv")
+#test with data from Vietnam without the graph
+train_chap("example_data_Viet/trainData.csv", "model")
+predict_chap("model", "example_data_Viet/historic_data.csv", "example_data_Viet/future_data.csv", "example_data_Viet/predictions.csv", "")
+
+read.csv("example_data_Viet/historic_data.csv")
 
 
 #testing

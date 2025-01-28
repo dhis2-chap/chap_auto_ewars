@@ -10,9 +10,12 @@
 library(INLA)
 library(dlnm)
 library(dplyr)
-#source('lib.R')
 
-predict_chap <- function(model_fn, hist_fn, future_fn, preds_fn){
+#for graphs
+library(sf)
+library(spdep)
+
+predict_chap <- function(model_fn, hist_fn, future_fn, preds_fn, graph_fn){
   model <- readRDS(file = model_fn) #would normally load a model here
   
   df <- read.csv(future_fn)
@@ -20,9 +23,7 @@ predict_chap <- function(model_fn, hist_fn, future_fn, preds_fn){
   df$disease_cases <- rep(NA, nrow(df)) #so we can rowbind it with historic
   
   historic_df = read.csv(hist_fn)
-  df <- rbind(historic_df, df) 
-  #df <- offset_years_and_months(df)
-  #df$ID_year <- df$ID_year - min(df$ID_year) + 1 #makes the years 1, 2, ..., not actually used anymore
+  df <- rbind(historic_df, df)
   
   #adding a counting variable for the months like 1, ..., 12, 13, ...
   #could also do years*12 + months, but fails for weeks
@@ -54,11 +55,26 @@ predict_chap <- function(model_fn, hist_fn, future_fn, preds_fn){
   #formula without a yearly effect, instead a common rw1 for all regions for the months, still
   #has a iid region specific effect and the cyclic rw1 over the months, plus the exogenous vars
   lagged_formula <- Cases ~ 1 + f(ID_spat, model='iid', hyper=list(prec = list(prior = "pc.prec",
-      param = c(1, 0.01)))) + f(month_num, model = "rw1", scale.model = T,
+    param = c(1, 0.01)))) + f(month_num, model = "rw1", scale.model = T,
+    replicate = ID_spat_num, hyper=list(prec = list(prior = "pc.prec", param = c(1, 0.01)))) +
+    f(month, model='rw1', cyclic=T, scale.model=T, hyper=list(prec = list(prior = "pc.prec",
+    param = c(1, 0.01)))) + basis_meantemperature + basis_rainsum
+
+ 
+  if(graph_fn != ""){
+    #df$ID_spat_num2 <- df$ID_spat_num
+    
+    geojson <- st_read(graph_fn)
+    geojson <- st_make_valid(geojson)
+    nb <- poly2nb(geojson, queen = TRUE) #adjacent polygons are neighbors
+    adjacency <- nb2mat(nb, style = "B", zero.policy = TRUE)
+    lagged_formula <- Cases ~ 1 + f(ID_spat_num, model = "bym2", graph = adjacency) + 
+      f(month_num, model = "rw1", scale.model = T,
       replicate = ID_spat_num, hyper=list(prec = list(prior = "pc.prec", param = c(1, 0.01)))) +
       f(month, model='rw1', cyclic=T, scale.model=T, hyper=list(prec = list(prior = "pc.prec",
       param = c(1, 0.01)))) + basis_meantemperature + basis_rainsum
-
+  }
+  
   model <- inla(formula = lagged_formula, data = df, family = "nbinomial", offset = log(E),
                 control.inla = list(strategy = 'adaptive'),
                 control.compute = list(config = TRUE, return.marginals = FALSE),
@@ -105,8 +121,9 @@ if (length(args) >= 1) {
   hist_fn <- args[2]
   future_fn <- args[3]
   preds_fn <- args[4]
+  graph_fn <- args[5]
   
-  predict_chap(model_fn, hist_fn, future_fn, preds_fn)
+  predict_chap(model_fn, hist_fn, future_fn, preds_fn, graph_fn)
 }
 
 # testing

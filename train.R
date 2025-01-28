@@ -8,7 +8,6 @@
 # meantemperature = mean_temperature
 
 library(INLA)
-source('lib.R')
 
 train_chap <- function(train_fn, model_fn){
   # df <- read.csv(train_fn)
