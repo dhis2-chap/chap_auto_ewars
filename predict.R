@@ -16,7 +16,7 @@ library(sf)
 library(spdep)
 
 predict_chap <- function(model_fn, hist_fn, future_fn, preds_fn, graph_fn){
-  model <- readRDS(file = model_fn) #would normally load a model here
+  #model <- readRDS(file = model_fn) #would normally load a model here
   
   df <- read.csv(future_fn)
   df$Cases <- rep(NA, nrow(df))
@@ -54,12 +54,15 @@ predict_chap <- function(model_fn, hist_fn, future_fn, preds_fn, graph_fn){
   
   #formula without a yearly effect, instead a common rw1 for all regions for the months, still
   #has a iid region specific effect and the cyclic rw1 over the months, plus the exogenous vars
-  lagged_formula <- Cases ~ 1 + f(ID_spat, model='iid', hyper=list(prec = list(prior = "pc.prec",
-    param = c(1, 0.01)))) + f(month_num, model = "rw1", scale.model = T,
-    replicate = ID_spat_num, hyper=list(prec = list(prior = "pc.prec", param = c(1, 0.01)))) +
-    f(month, model='rw1', cyclic=T, scale.model=T, hyper=list(prec = list(prior = "pc.prec",
-    param = c(1, 0.01)))) + basis_meantemperature + basis_rainsum
+  #lagged_formula <- Cases ~ 1 + f(ID_spat, model='iid', hyper=list(prec = list(prior = "pc.prec",
+  #  param = c(1, 0.01)))) + f(month_num, model = "rw1", scale.model = T,
+  #  replicate = ID_spat_num, hyper=list(prec = list(prior = "pc.prec", param = c(1, 0.01)))) +
+  #  f(month, model='rw1', cyclic=T, scale.model=T, hyper=list(prec = list(prior = "pc.prec",
+  #  param = c(1, 0.01)))) + basis_meantemperature + basis_rainsum
 
+  lagged_formula <- Cases ~ 1 + f(ID_spat, model='iid') + f(month_num, model = "rw1", scale.model = T,
+    replicate = ID_spat_num) +
+    f(month, model='rw1', cyclic=T, scale.model=T) + basis_meantemperature + basis_rainsum
  
   if(graph_fn != ""){
     #df$ID_spat_num2 <- df$ID_spat_num
@@ -68,11 +71,15 @@ predict_chap <- function(model_fn, hist_fn, future_fn, preds_fn, graph_fn){
     geojson <- st_make_valid(geojson)
     nb <- poly2nb(geojson, queen = TRUE) #adjacent polygons are neighbors
     adjacency <- nb2mat(nb, style = "B", zero.policy = TRUE)
-    lagged_formula <- Cases ~ 1 + f(ID_spat_num, model = "bym2", graph = adjacency) + 
+    # lagged_formula <- Cases ~ 1 + f(ID_spat_num, model = "bym2", graph = adjacency) + 
+    #   f(month_num, model = "rw1", scale.model = T,
+    #   replicate = ID_spat_num, hyper=list(prec = list(prior = "pc.prec", param = c(1, 0.01)))) +
+    #   f(month, model='rw1', cyclic=T, scale.model=T, hyper=list(prec = list(prior = "pc.prec",
+    #   param = c(1, 0.01)))) + basis_meantemperature + basis_rainsum
+    lagged_formula <- Cases ~ 1 + #f(ID_spat_num, model = "bym2", graph = adjacency, replicate = ID_spat_num) + 
       f(month_num, model = "rw1", scale.model = T,
-      replicate = ID_spat_num, hyper=list(prec = list(prior = "pc.prec", param = c(1, 0.01)))) +
-      f(month, model='rw1', cyclic=T, scale.model=T, hyper=list(prec = list(prior = "pc.prec",
-      param = c(1, 0.01)))) + basis_meantemperature + basis_rainsum
+        replicate = ID_spat_num) +
+      f(month, model='rw1', cyclic=T, scale.model=T) + basis_meantemperature + basis_rainsum
   }
   
   model <- inla(formula = lagged_formula, data = df, family = "nbinomial", offset = log(E),
