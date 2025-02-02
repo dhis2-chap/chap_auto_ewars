@@ -24,6 +24,7 @@ predict_chap <- function(model_fn, hist_fn, future_fn, preds_fn, graph_fn){
   
   historic_df = read.csv(hist_fn)
   df <- rbind(historic_df, df)
+  df <- mutate(df, ID_year = ID_year - min(df$ID_year) + 1)
   
   #adding a counting variable for the months like 1, ..., 12, 13, ...
   #could also do years*12 + months, but fails for weeks
@@ -69,20 +70,25 @@ predict_chap <- function(model_fn, hist_fn, future_fn, preds_fn, graph_fn){
     
     geojson <- st_read(graph_fn)
     geojson <- st_make_valid(geojson)
-    nb <- poly2nb(geojson, queen = TRUE) #adjacent polygons are neighbors
+    
+    df_locs <- unique(df$location)
+    geojson_red <- geojson[geojson$VARNAME_1 %in% df_locs, ]
+    
+    nb <- poly2nb(geojson_red, queen = TRUE) #adjacent polygons are neighbors
     adjacency <- nb2mat(nb, style = "B", zero.policy = TRUE)
+    
     # lagged_formula <- Cases ~ 1 + f(ID_spat_num, model = "bym2", graph = adjacency) + 
     #   f(month_num, model = "rw1", scale.model = T,
     #   replicate = ID_spat_num, hyper=list(prec = list(prior = "pc.prec", param = c(1, 0.01)))) +
     #   f(month, model='rw1', cyclic=T, scale.model=T, hyper=list(prec = list(prior = "pc.prec",
     #   param = c(1, 0.01)))) + basis_meantemperature + basis_rainsum
-    lagged_formula <- Cases ~ 1 + #f(ID_spat_num, model = "bym2", graph = adjacency, replicate = ID_spat_num) + 
-      f(month_num, model = "rw1", scale.model = T,
-        replicate = ID_spat_num) +
-      f(month, model='rw1', cyclic=T, scale.model=T) + basis_meantemperature + basis_rainsum
+    
+    lagged_formula <- Cases ~ 1 + f(ID_spat_num, model = "bym2", graph = adjacency, replicate = ID_year) + 
+      f(month_num, model = "rw1", scale.model = T, replicate = ID_spat_num) +
+      f(month, model='rw2', cyclic=T, scale.model=T) + basis_meantemperature + basis_rainsum
   }
   
-  model <- inla(formula = lagged_formula, data = df, family = "nbinomial", offset = log(E),
+  model <- inla(formula = lagged_formula, data = df, family = "poisson", offset = log(E),
                 control.inla = list(strategy = 'adaptive'),
                 control.compute = list(config = TRUE, return.marginals = FALSE),
                 control.fixed = list(correlation.matrix = TRUE, prec.intercept = 0.1, prec = 1),
@@ -109,7 +115,6 @@ predict_chap <- function(model_fn, hist_fn, future_fn, preds_fn, graph_fn){
   }
   
   
-  
   # make a dataframe where first column is the time points, second column is the location, rest is the samples
   # rest of columns should be called sample_0, sample_1, etc
   new.df = data.frame(time_period = df$time_period[idx.pred], location = df$location[idx.pred], y.pred)
@@ -133,15 +138,34 @@ if (length(args) >= 1) {
   predict_chap(model_fn, hist_fn, future_fn, preds_fn, graph_fn)
 }
 
+# #plot og Vietnam for all the regions
+# #par(mar = c(0, 0, 0, 0))
+# plot(st_geometry(geojson),
+#      col = "steelblue", lwd = 0.5, asp = 1)
+# 
+# #plot of the regions of Vietnam in the training data
+# plot(st_geometry(geojson_red),
+#      col = "steelblue", lwd = 0.5, asp = 1)
+# 
+# 
+
 # testing
 #library(dplyr)
 # 
+#  # testing with chap data 
 # model_fn <- "model"
 # hist_fn <- "example_data/historic_data.csv"
 # future_fn <- "example_data/future_data.csv"
 # preds_fn <- "example_data/predictions.csv"
 
-# df <- read.csv(future_fn)
+# testing with vietnam data with polygons
+# model_fn <- "model"
+# hist_fn <- "example_data_Viet/historic_data.csv"
+# future_fn <- "example_data_Viet/future_data.csv"
+# preds_fn <- "example_data_Viet/predictions.csv"
+# graph_fn <- "example_data_Viet/vietnam.json"
+# 
+
 # df$Cases <- rep(NA, nrow(df))
 # df$disease_cases <- rep(NA, nrow(df)) #so we can rowbind it with historic
 # 
@@ -149,7 +173,33 @@ if (length(args) >= 1) {
 # df <- rbind(historic_df, df)
 # df <- offset_years_and_months(df)
 # df$ID_year <- df$ID_year - min(df$ID_year) + 1
-# 
+
+un <- unique(df$location)
+df_loc1 <- df[df$location == un[3], ][c("rainfall", "disease_cases")]
+
+plot(model$summary.random$month_num$mean[800:1000])
+
+library(ggplot2)
+
+df_loc1$t <- 1:nrow(df_loc1)  # Create a time index from 1 to n
+df_long <- df_loc1 %>% pivot_longer(cols = -t, names_to = "variable", values_to = "value")
+
+ggplot(df_long, aes(x = t, y = value, color = variable)) +
+  geom_line() +
+  labs(title = "title", 
+       x = "x", y = "y") +
+  theme(legend.title = element_blank())
+
+library(zoo)
+df_loc1$rainfall <- na.locf(df_loc1$rainfall)
+df_loc1$disease_cases <- na.locf(df_loc1$disease_cases)
+
+ccf(df_loc1$rainfall, df_loc1$disease_cases, 
+    main = "Cross-Correlation between Rainfall and Disease Cases")
+acf(df_loc1$disease_cases)
+
+
+
 # basis_meantemperature <- extra_fields(df)
 # basis_rainsum <- get_basis_rainsum(df)
 # 
@@ -180,3 +230,23 @@ if (length(args) >= 1) {
 # 
 # rand_ID_spat2 <- model2$summary.random$ID_spat
 # 
+
+
+
+# geojson <- st_read(graph_fn)
+# geojson <- st_make_valid(geojson)
+
+# #might also need to alphabetically sort both geojson after location and the 
+# # dataframe after location!
+# df <- read.csv(future_fn)
+# df_locs <- unique(df$location)
+# geojson$VARNAME_1
+# 
+# nb <- poly2nb(geojson, queen = TRUE) #adjacent polygons are neighbors
+# adjacency <- nb2mat(nb, style = "B", zero.policy = TRUE)
+# 
+# geojson_reduced <- geojson[geojson$VARNAME_1 %in% df_locs, ]
+# nb_red <- poly2nb(geojson_reduced, queen = TRUE) #adjacent polygons are neighbors
+# adjacency_red <- nb2mat(nb_red, style = "B", zero.policy = TRUE)
+# row.names(adjacency_red) <- NULL
+# image(adjacency_red)
