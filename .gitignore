@@ -5,4 +5,4 @@ ex_data_fails
 example_data/predictions.csv
 model
 *.csv
-polygons.geojson
+*.geojson
