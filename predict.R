@@ -69,13 +69,16 @@ predict_chap <- function(model_fn, hist_fn, future_fn, preds_fn, graph_fn){
     #df$ID_spat_num2 <- df$ID_spat_num
     
     geojson <- st_read(graph_fn)
-    geojson <- st_make_valid(geojson)
+    geojson <- st_make_valid(geojson) #some geojson files will giver errors later if this is not cleaned here
     
     df_locs <- unique(df$location)
-    geojson_red <- geojson[geojson$VARNAME_1 %in% df_locs, ]
+    geojson_red <- geojson[geojson$VARNAME_1 %in% df_locs, ] #only keeps the regions present in the dataframe
+    #both df_locs and geosjon_red should be in alfabetical order, believe the files are alfabetical in CHAP, might need to sort them
+    #if they are both alphabetical, and take care about which field in the geeojson, could be vietnamese or english (handle in CHAP?)
+    #then the regions should harmonize correctly in the formulas below
     
     nb <- poly2nb(geojson_red, queen = TRUE) #adjacent polygons are neighbors
-    adjacency <- nb2mat(nb, style = "B", zero.policy = TRUE)
+    adjacency <- nb2mat(nb, style = "B", zero.policy = TRUE) #converts it to an adjacency matrix which is passed to the bym2
     
     # lagged_formula <- Cases ~ 1 + f(ID_spat_num, model = "bym2", graph = adjacency) + 
     #   f(month_num, model = "rw1", scale.model = T,
@@ -88,14 +91,12 @@ predict_chap <- function(model_fn, hist_fn, future_fn, preds_fn, graph_fn){
       f(month, model='rw2', cyclic=T, scale.model=T) + basis_meantemperature + basis_rainsum
   }
   
-  model <- inla(formula = lagged_formula, data = df, family = "poisson", offset = log(E),
+  model <- inla(formula = lagged_formula, data = df, family = "nbinomial", offset = log(E),
                 control.inla = list(strategy = 'adaptive'),
                 control.compute = list(config = TRUE, return.marginals = FALSE),
                 control.fixed = list(correlation.matrix = TRUE, prec.intercept = 0.1, prec = 1),
                 control.predictor = list(link = 1, compute = TRUE),
                 verbose = F, safe=FALSE)
-  #summary(model)
-  #model <- inla.rerun(model)
 
   casestopred <- df$Cases # response variable
   
@@ -114,7 +115,6 @@ predict_chap <- function(model_fn, hist_fn, future_fn, preds_fn, graph_fn){
     y.pred[, s.idx] <- rnbinom(mpred,  mu = exp(xx.sample[-1]), size = xx.sample[1])
   }
   
-  
   # make a dataframe where first column is the time points, second column is the location, rest is the samples
   # rest of columns should be called sample_0, sample_1, etc
   new.df = data.frame(time_period = df$time_period[idx.pred], location = df$location[idx.pred], y.pred)
@@ -122,7 +122,7 @@ predict_chap <- function(model_fn, hist_fn, future_fn, preds_fn, graph_fn){
   
   # Write new dataframe to file
   write.csv(new.df, preds_fn, row.names = FALSE)
-  #saveRDS(model, file = model_fn)
+  #saveRDS(model, file = model_fn) # to evaluate the model
 }
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -138,8 +138,7 @@ if (length(args) >= 1) {
   predict_chap(model_fn, hist_fn, future_fn, preds_fn, graph_fn)
 }
 
-# #plot og Vietnam for all the regions
-# #par(mar = c(0, 0, 0, 0))
+# #plot of Vietnam for all the regions
 # plot(st_geometry(geojson),
 #      col = "steelblue", lwd = 0.5, asp = 1)
 # 
