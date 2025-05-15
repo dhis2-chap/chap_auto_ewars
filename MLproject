@@ -1,6 +1,27 @@
+name: chap_ewars_monthly
 
+target: disease_cases
+required_covariates: 
+  - rainfall
+  - mean_temperature
+  - population
+allow_free_additional_continuous_covariates: False
+supported_period_type: month
+user_options: {}
 
-name: ewars_monthly
+meta_data: 
+  display_name: Monthly CHAP-EWARS model
+  description: >
+    Modified version of the World Health Organization (WHO) EWARS model.
+    EWARS is a Bayesian hierarchical model implemented with the INLA library.
+  author: CHAP team
+  organization: HISP Centre, University of Oslo
+  organization_logo_url: https://landportal.org/sites/default/files/2024-03/university_of_oslo_logo.png
+  contact_email: knut.rand@dhis2.org
+  citation_info: >
+    Climate Health Analytics Platform. 2025. "Weekly CHAP-EWARS model".
+    HISP Centre, University of Oslo.
+    https://dhis2-chap.github.io/chap-core/external_models/overview_of_supported_models.html
 
 adapters: {'Cases': 'disease_cases',
            'E': 'population',
